@@ -71,6 +71,46 @@ where
     })
 }
 
+/// Traverses nodes from `start_node` in post-order.
+pub fn post_order<T, NI>(
+    start_node: T,
+    mut neighbors_fn: impl FnMut(&T) -> NI,
+) -> impl Iterator<Item = T>
+where
+    T: Clone + Hash + Eq,
+    NI: IntoIterator<Item = T>,
+{
+    let mut stack = vec![(start_node, false)];
+    let mut visited: HashSet<T> = HashSet::new();
+    iter::from_fn(move || {
+        while let Some((node, processed)) = stack.pop() {
+            if processed {
+                // If we marked it as processed, it means its children
+                // were already added to the stack and processed.
+                return Some(node);
+            }
+            // Mark as visited so we don't start a new DFS from here
+            if !visited.insert(node.clone()) {
+                // The node is already visited, continue.
+                continue;
+            }
+            let neighbors = neighbors_fn(&node).into_iter().collect_vec();
+            // Push the node back onto the stack with processed = true.
+            // It will be popped and yielded AFTER its children.
+            stack.push((node, true));
+            // Push the neighbors onto the stack with processed = false. The neighbors are
+            // added in reverse order, so they are processed in the
+            // original order.
+            for neighbor in neighbors.into_iter().rev() {
+                if !visited.contains(&neighbor) {
+                    stack.push((neighbor, false));
+                }
+            }
+        }
+        None
+    })
+}
+
 /// Builds a list of nodes reachable from the `start` where neighbors come
 /// before the node itself.
 ///
@@ -269,6 +309,216 @@ mod tests {
         // Self and neighbor nodes shouldn't be lost at the error.
         let nodes = dfs_ok([Ok('C')], id_fn, neighbors_fn).collect_vec();
         assert_eq!(nodes, [Ok('C'), Ok('B'), Err('X'), Ok('A')]);
+    }
+
+    #[test]
+    fn test_post_order() {
+        // This graph:
+        //  o F
+        //  |\
+        //  o | E
+        //  | o D
+        //  | o C
+        //  | o B
+        //  |/
+        //  o A
+
+        let neighbors = hashmap! {
+            'A' => vec![],
+            'B' => vec!['A'],
+            'C' => vec!['B'],
+            'D' => vec!['C'],
+            'E' => vec!['A'],
+            'F' => vec!['E', 'D'],
+        };
+        let neighbors_fn = |node: &char| neighbors[node].clone();
+        assert_eq!(
+            post_order('F', neighbors_fn).collect_vec(),
+            ['A', 'E', 'B', 'C', 'D', 'F']
+        );
+        assert_eq!(post_order('E', neighbors_fn).collect_vec(), ['A', 'E']);
+        assert_eq!(
+            post_order('D', neighbors_fn).collect_vec(),
+            ['A', 'B', 'C', 'D']
+        );
+        assert_eq!(post_order('A', neighbors_fn).collect_vec(), ['A']);
+
+        // This graph:
+        //  o I
+        //  |\
+        //  | o H
+        //  | |\
+        //  | | o G
+        //  | o | F
+        //  | | o E
+        //  o |/ D
+        //  | o C
+        //  o | B
+        //  |/
+        //  o A
+
+        let neighbors = hashmap! {
+            'A' => vec![],
+            'B' => vec!['A'],
+            'C' => vec!['A'],
+            'D' => vec!['B'],
+            'E' => vec!['C'],
+            'F' => vec!['C'],
+            'G' => vec!['E'],
+            'H' => vec!['F', 'G'],
+            'I' => vec!['D', 'H'],
+        };
+        let neighbors_fn = |node: &char| neighbors[node].clone();
+        assert_eq!(
+            post_order('I', neighbors_fn).collect_vec(),
+            ['A', 'B', 'D', 'C', 'F', 'E', 'G', 'H', 'I']
+        );
+
+        // This graph:
+        //  o I
+        //  |\
+        //  | |\
+        //  | | |\
+        //  | | | o h (h > I)
+        //  | | |/|
+        //  | | o | G
+        //  | |/| o f
+        //  | o |/ e (e > I, G)
+        //  |/| o D
+        //  o |/ C
+        //  | o b (b > D)
+        //  |/
+        //  o A
+
+        let neighbors = hashmap! {
+            'A' => vec![],
+            'b' => vec!['A'],
+            'C' => vec!['A'],
+            'D' => vec!['b'],
+            'e' => vec!['C', 'b'],
+            'f' => vec!['D'],
+            'G' => vec!['e', 'D'],
+            'h' => vec!['G', 'f'],
+            'I' => vec!['C', 'e', 'G', 'h'],
+        };
+        let neighbors_fn = |node: &char| neighbors[node].clone();
+        assert_eq!(
+            post_order('I', neighbors_fn).collect_vec(),
+            ['A', 'C', 'b', 'e', 'D', 'G', 'f', 'h', 'I']
+        );
+
+        // This graph:
+        //  o G
+        //  |\
+        //  | o F
+        //  o | E
+        //  | o D
+        //  |/
+        //  o C
+        //  o B
+        //  o A
+
+        let neighbors = hashmap! {
+            'A' => vec![],
+            'B' => vec!['A'],
+            'C' => vec!['B'],
+            'D' => vec!['C'],
+            'E' => vec!['C'],
+            'F' => vec!['D'],
+            'G' => vec!['E', 'F'],
+        };
+        let neighbors_fn = |node: &char| neighbors[node].clone();
+        assert_eq!(
+            post_order('G', neighbors_fn).collect_vec(),
+            ['A', 'B', 'C', 'E', 'D', 'F', 'G']
+        );
+
+        // This graph:
+        //  o G
+        //  |\
+        //  o | F
+        //  o | E
+        //  | o D
+        //  |/
+        //  o c (c > E, D)
+        //  o B
+        //  o A
+
+        let neighbors = hashmap! {
+            'A' => vec![],
+            'B' => vec!['A'],
+            'c' => vec!['B'],
+            'D' => vec!['c'],
+            'E' => vec!['c'],
+            'F' => vec!['E'],
+            'G' => vec!['F', 'D'],
+        };
+        let neighbors_fn = |node: &char| neighbors[node].clone();
+        assert_eq!(
+            post_order('G', neighbors_fn).collect_vec(),
+            ['A', 'B', 'c', 'E', 'F', 'D', 'G']
+        );
+
+        // This graph:
+        //  o F
+        //  |\
+        //  o | E
+        //  | o D
+        //  | | o C
+        //  | | |
+        //  | | o B
+        //  | |/
+        //  |/
+        //  o A
+
+        let neighbors = hashmap! {
+            'A' => vec![],
+            'B' => vec!['A'],
+            'C' => vec!['B'],
+            'D' => vec!['A'],
+            'E' => vec!['A'],
+            'F' => vec!['E', 'D'],
+        };
+        let neighbors_fn = |node: &char| neighbors[node].clone();
+        assert_eq!(
+            post_order('F', neighbors_fn).collect_vec(),
+            ['A', 'E', 'D', 'F']
+        );
+        assert_eq!(post_order('C', neighbors_fn).collect_vec(), ['A', 'B', 'C']);
+
+        // This graph:
+        //  o D
+        //  | \
+        //  o | C
+        //    o B
+        //    o A
+
+        let neighbors = hashmap! {
+            'A' => vec![],
+            'B' => vec!['A'],
+            'C' => vec![],
+            'D' => vec!['C', 'B'],
+        };
+        let neighbors_fn = |node: &char| neighbors[node].clone();
+        assert_eq!(
+            post_order('D', neighbors_fn).collect_vec(),
+            ['C', 'A', 'B', 'D']
+        );
+
+        // This graph:
+        //  o C
+        //  o B
+        //  o A (to C)
+
+        let neighbors = hashmap! {
+            'A' => vec!['C'],
+            'B' => vec!['A'],
+            'C' => vec!['B'],
+        };
+        let neighbors_fn = |node: &char| neighbors[node].clone();
+        assert_eq!(post_order('C', neighbors_fn).collect_vec(), ['A', 'B', 'C']);
+        assert_eq!(post_order('B', neighbors_fn).collect_vec(), ['C', 'A', 'B']);
+        assert_eq!(post_order('A', neighbors_fn).collect_vec(), ['B', 'C', 'A']);
     }
 
     #[test]
