@@ -21,6 +21,7 @@ use std::collections::HashSet;
 use std::collections::hash_map::Entry::Occupied;
 use std::collections::hash_map::Entry::Vacant;
 use std::hash::Hash;
+use std::ops::Deref as _;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -52,6 +53,7 @@ use jj_lib::repo::ReadonlyRepo;
 use jj_lib::repo::Repo as _;
 use jj_lib::revset::ResolvedRevsetExpression;
 use jj_lib::revset::RevsetEvaluationError;
+use jj_lib::revset::RevsetExpression;
 use jj_lib::revset::RevsetIteratorExt as _;
 use thiserror::Error;
 
@@ -500,11 +502,22 @@ async fn converge_description(
 }
 
 async fn converge_parents(
-    _repo: &Arc<ReadonlyRepo>,
-    _converge_ui: Option<&dyn ConvergeUI>,
-    _graph: &TruncatedEvolutionGraph,
+    repo: &Arc<ReadonlyRepo>,
+    converge_ui: Option<&dyn ConvergeUI>,
+    graph: &TruncatedEvolutionGraph,
 ) -> Result<ConvergeResult<Vec<CommitId>>, ConvergeError> {
-    todo!()
+    // Filter out divergent commits that are descendants of other divergent commits
+    // (we cannot use the parents of those commits because that would introduce
+    // cycles when we rebase everything on top of the parents).
+    let viable_commits = remove_descendants(repo, &graph.divergent_commit_ids)?;
+    let get_parents_fn = async |c: &Commit| Ok(c.parent_ids().to_vec());
+    let (value_merge, _base_commit) =
+        create_value_merge(repo, &viable_commits, graph, get_parents_fn).await?;
+    if let Some(value) = value_merge.resolve_trivial(SameChange::Accept) {
+        return Ok(ConvergeResult::Solution(value.clone()));
+    }
+    let ui_chooser = |converge_ui: &dyn ConvergeUI| converge_ui.choose_parents(&viable_commits);
+    converge_interactively(converge_ui, ui_chooser, "parents")
 }
 
 // Assume A, B, C are the divergent commits, P is the solution parents (i.e. the
@@ -651,6 +664,28 @@ where
         .unwrap()
         .clone();
     Ok(producer)
+}
+
+/// Returns those commits in commit_ids that are not descendants of any other
+/// commit in commit_ids.
+pub fn remove_descendants(
+    repo: &Arc<ReadonlyRepo>,
+    commit_ids: &[CommitId],
+) -> Result<Vec<Commit>, ConvergeError> {
+    if commit_ids.is_empty() {
+        return Ok(vec![]);
+    }
+    let revset_expression = Arc::new(RevsetExpression::Commits(commit_ids.to_vec())).roots();
+    let result: Vec<_> = revset_expression
+        .evaluate(repo.deref())?
+        .iter()
+        .commits(repo.store())
+        .try_collect()?;
+    validate(
+        !result.is_empty(),
+        &format!("the result of remove_descendants should never be empty; commits: {commit_ids:?}"),
+    )?;
+    Ok(result)
 }
 
 fn converge_interactively<T, F>(
