@@ -459,6 +459,46 @@ mod platform {
     }
 }
 
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+mod platform {
+    use std::fs::File;
+    use std::io;
+    use std::path::Path;
+
+    pub use super::fallback::BadOsStrEncoding;
+    pub use super::fallback::os_str_from_bytes;
+    pub use super::fallback::os_str_to_bytes;
+
+    pub fn check_symlink_support() -> io::Result<bool> {
+        Ok(false)
+    }
+
+    pub fn symlink_dir<P: AsRef<Path>, Q: AsRef<Path>>(_original: P, _link: Q) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "symlinks are not supported by the wasm browser fallback",
+        ))
+    }
+
+    pub fn symlink_file<P: AsRef<Path>, Q: AsRef<Path>>(_original: P, _link: Q) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "symlinks are not supported by the wasm browser fallback",
+        ))
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+    pub struct FileIdentity;
+
+    pub fn file_identity_from_symlink_path(_path: &Path) -> io::Result<FileIdentity> {
+        Ok(FileIdentity)
+    }
+
+    pub fn file_identity_from_file(_file: File) -> io::Result<FileIdentity> {
+        Ok(FileIdentity)
+    }
+}
+
 #[cfg_attr(unix, expect(dead_code))]
 mod fallback {
     use std::ffi::OsStr;

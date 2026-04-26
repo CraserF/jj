@@ -14,9 +14,12 @@
 
 #![expect(missing_docs)]
 
+#[cfg(windows)]
 mod backoff;
 #[cfg(unix)]
 mod unix;
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+mod wasm;
 #[cfg(windows)]
 mod windows;
 
@@ -27,6 +30,8 @@ use thiserror::Error;
 
 #[cfg(unix)]
 pub use self::unix::FileLock;
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+pub use self::wasm::FileLock;
 #[cfg(windows)]
 pub use self::windows::FileLock;
 

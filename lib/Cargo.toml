@@ -76,6 +76,9 @@ rustix = { workspace = true }
 same-file = { workspace = true }
 winreg = { workspace = true }
 
+[target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
+getrandom = { workspace = true, features = ["wasm_js"] }
+
 [dev-dependencies]
 assert_matches = { workspace = true }
 criterion = { workspace = true }
