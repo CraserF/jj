@@ -1,0 +1,22 @@
+{
+  "name": "jj-wasm",
+  "type": "module",
+  "description": "Browser/WebAssembly bindings for Jujutsu",
+  "version": "0.40.0",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jj-vcs/jj"
+  },
+  "files": [
+    "jj_wasm_bg.wasm",
+    "jj_wasm.js",
+    "jj_wasm.d.ts"
+  ],
+  "main": "jj_wasm.js",
+  "homepage": "https://www.jj-vcs.dev/",
+  "types": "jj_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

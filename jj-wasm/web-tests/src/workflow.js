@@ -37,6 +37,8 @@ export async function runWorkflow() {
     message: "describe browser snapshot",
     author: AUTHOR,
   });
+  const describedRaw = await session.readRawObject(described.commitId);
+  const describedCommitText = decodeCommitObject(describedRaw.wrapped);
 
   await pfs.writeFile(`${dir}/README.md`, "hello again from jj-wasm\n", "utf8");
   const modifiedStatus = await session.status();
@@ -64,5 +66,16 @@ export async function runWorkflow() {
     undo,
     opLog,
     log,
+    rawCommitMetadata: {
+      kind: describedRaw.kind,
+      hasChangeIdHeader: /^change-id [0-9a-f]{32}$/m.test(describedCommitText),
+    },
   };
+}
+
+function decodeCommitObject(wrapped) {
+  const bytes = wrapped instanceof Uint8Array ? wrapped : new Uint8Array(wrapped);
+  const nulIndex = bytes.indexOf(0);
+  const payload = nulIndex === -1 ? bytes : bytes.slice(nulIndex + 1);
+  return new TextDecoder().decode(payload);
 }

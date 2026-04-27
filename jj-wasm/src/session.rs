@@ -14,6 +14,7 @@
 
 use serde::Deserialize;
 use serde::Serialize;
+use std::fmt::Write as _;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -25,6 +26,7 @@ const JJ_WASM_DIR: &str = ".jj/wasm";
 const SESSION_FILE: &str = "session.json";
 const OP_LOG_FILE: &str = "operations.json";
 const STATE_FILE: &str = "state.json";
+const CURRENT_SCHEMA_VERSION: u32 = 1;
 
 #[wasm_bindgen]
 pub struct JjSession {
@@ -159,16 +161,8 @@ impl JjSession {
 
     pub async fn log(&self, options: JsValue) -> Result<JsValue, JsValue> {
         let options = LogOptions::from_js(options)?;
-        if let Some(revset) = options.revset.as_deref()
-            && !matches!(revset, "" | "@" | "HEAD" | "::" | "all()")
-        {
-            return Err(js_util::unsupported("log(revset)"));
-        }
-        let ref_name = options
-            .ref_name
-            .as_deref()
-            .or_else(|| matches!(options.revset.as_deref(), Some("@" | "HEAD")).then_some("HEAD"));
-        let log = self.backend.log(ref_name, options.limit).await?;
+        let ref_name = log_ref_from_options(&options);
+        let log = self.backend.log(ref_name.as_deref(), options.limit).await?;
         let state = self.read_state_or_default().await?;
         js_util::to_js(&serde_json::json!({
             "commits": serde_wasm_bindgen::from_value::<serde_json::Value>(log)
@@ -184,12 +178,12 @@ impl JjSession {
         let state = self.read_state_or_default().await?;
         let visible_rows = rows
             .iter()
-            .filter(|row| !is_jj_metadata_path(&row.filepath))
+            .filter(|row| !is_vcs_metadata_path(&row.filepath))
             .cloned()
             .collect::<Vec<_>>();
         let changed_files = rows
             .iter()
-            .filter(|row| !is_jj_metadata_path(&row.filepath))
+            .filter(|row| !is_vcs_metadata_path(&row.filepath))
             .filter(|row| row.head != row.workdir || row.workdir != row.stage)
             .map(StatusFile::from)
             .collect::<Vec<_>>();
@@ -241,6 +235,9 @@ impl JjSession {
                     options.ref_name.as_deref(),
                     &[],
                 )
+                .await?;
+            let commit_id = self
+                .write_change_id_header(commit_id, after_state.current_change_id.as_deref())
                 .await?;
             if let Some(ref_name) = options.ref_name.as_deref() {
                 self.backend.write_ref(ref_name, &commit_id).await?;
@@ -483,7 +480,7 @@ impl JjSession {
             created_by: created_by.to_string(),
             dir: self.backend.dir().to_string(),
             gitdir: self.backend.gitdir().map(str::to_owned),
-            schema_version: 1,
+            schema_version: CURRENT_SCHEMA_VERSION,
         };
         self.backend
             .fs()
@@ -497,7 +494,7 @@ impl JjSession {
     async fn initial_state(&self) -> Result<RepoState, JsValue> {
         let head = self.resolve_head().await.ok().flatten();
         let mut state = RepoState {
-            schema_version: 1,
+            schema_version: CURRENT_SCHEMA_VERSION,
             head: head.clone(),
             ..RepoState::default()
         };
@@ -507,8 +504,12 @@ impl JjSession {
 
     async fn read_state_or_default(&self) -> Result<RepoState, JsValue> {
         let path = js_util::join_path(&self.metadata_dir, STATE_FILE);
-        match self.backend.fs().read_json(&path).await {
-            Ok(state) => Ok(state),
+        match self.backend.fs().read_text(&path).await {
+            Ok(text) => {
+                let state =
+                    serde_json::from_str(&text).map_err(|err| corrupt_state_error(&path, err))?;
+                migrate_state(state, &path)
+            }
             Err(_) => self.initial_state().await,
         }
     }
@@ -533,6 +534,12 @@ impl JjSession {
         for revision in revisions {
             if revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit()) {
                 resolved.push(revision.clone());
+            } else if matches!(revision.as_str(), "@" | "HEAD") {
+                let value = self.backend.resolve_ref("HEAD").await?;
+                let id = value.as_string().ok_or_else(|| {
+                    js_util::error(format!("revision `{revision}` did not resolve to an id"))
+                })?;
+                resolved.push(id);
             } else {
                 let value = self.backend.resolve_ref(revision).await?;
                 let id = value.as_string().ok_or_else(|| {
@@ -571,7 +578,7 @@ impl JjSession {
         let rows = status_rows_from_js(status_matrix)?;
         let changed_rows = rows
             .iter()
-            .filter(|row| !is_jj_metadata_path(&row.filepath))
+            .filter(|row| !is_vcs_metadata_path(&row.filepath))
             .filter(|row| row.head != row.workdir)
             .cloned()
             .collect::<Vec<_>>();
@@ -599,7 +606,7 @@ impl JjSession {
                         .filter(|description| !description.is_empty())
                 })
                 .unwrap_or_else(|| "snapshot".to_string());
-            let commit_id = self
+            let mut commit_id = self
                 .backend
                 .commit(
                     &message,
@@ -610,6 +617,10 @@ impl JjSession {
                     &[],
                 )
                 .await?;
+            commit_id = self
+                .write_change_id_header(commit_id, after_state.current_change_id.as_deref())
+                .await?;
+            self.reset_current_ref(&commit_id).await?;
             after_state.set_current_commit(commit_id.clone());
             after_state.head = Some(commit_id.clone());
             Some(commit_id)
@@ -643,10 +654,24 @@ impl JjSession {
 
     async fn read_operations_or_empty(&self) -> Result<Vec<OperationRecord>, JsValue> {
         let path = js_util::join_path(&self.metadata_dir, OP_LOG_FILE);
-        match self.backend.fs().read_json(&path).await {
-            Ok(operations) => Ok(operations),
+        match self.backend.fs().read_text(&path).await {
+            Ok(text) => serde_json::from_str(&text).map_err(|err| corrupt_state_error(&path, err)),
             Err(_) => Ok(Vec::new()),
         }
+    }
+
+    async fn write_change_id_header(
+        &self,
+        commit_id: String,
+        change_id: Option<&str>,
+    ) -> Result<String, JsValue> {
+        let Some(change_id) = change_id else {
+            return Ok(commit_id);
+        };
+        let header_value = normalize_change_id_header(change_id);
+        self.backend
+            .rewrite_commit_header(&commit_id, "change-id", &header_value)
+            .await
     }
 
     async fn record_operation(
@@ -887,7 +912,7 @@ struct RepoState {
 impl Default for RepoState {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: CURRENT_SCHEMA_VERSION,
             head: None,
             current_change_id: None,
             working_copy_commit: None,
@@ -1154,10 +1179,63 @@ fn status_cell(value: &serde_json::Value, name: &str) -> Result<u8, JsValue> {
         .map_err(|_| js_util::error(format!("status matrix {name} cell was out of range")))
 }
 
-fn is_jj_metadata_path(path: &str) -> bool {
-    path == ".jj" || path.starts_with(".jj/")
+fn log_ref_from_options(options: &LogOptions) -> Option<String> {
+    if let Some(ref_name) = options.ref_name.as_deref() {
+        return Some(ref_name.to_string());
+    }
+    match options.revset.as_deref().map(str::trim) {
+        None | Some("" | "::" | "all()") => None,
+        Some("@" | "HEAD") => Some("HEAD".to_string()),
+        Some(revset) => Some(revset.to_string()),
+    }
+}
+
+fn migrate_state(mut state: RepoState, path: &str) -> Result<RepoState, JsValue> {
+    if state.schema_version == 0 {
+        state.schema_version = CURRENT_SCHEMA_VERSION;
+    }
+    if state.schema_version != CURRENT_SCHEMA_VERSION {
+        return Err(js_util::error(format!(
+            "unsupported jj-wasm state schema {} in `{path}`; supported schema is {}",
+            state.schema_version, CURRENT_SCHEMA_VERSION
+        )));
+    }
+    Ok(state)
+}
+
+fn corrupt_state_error(path: &str, err: serde_json::Error) -> JsValue {
+    js_util::error(format!(
+        "failed to decode jj-wasm metadata `{path}`: {err}. Back up the browser filesystem if \
+         needed, then delete `{path}` or reset the repo to recover."
+    ))
+}
+
+fn is_vcs_metadata_path(path: &str) -> bool {
+    path == ".jj" || path.starts_with(".jj/") || path == ".git" || path.starts_with(".git/")
+}
+
+fn normalize_change_id_header(change_id: &str) -> String {
+    if change_id.len() == 32 && change_id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return change_id.to_ascii_lowercase();
+    }
+
+    let mut bytes = [0_u8; 16];
+    for (index, byte) in change_id.bytes().enumerate() {
+        let slot = index % bytes.len();
+        bytes[slot] = bytes[slot].wrapping_mul(31).wrapping_add(byte);
+    }
+    bytes.iter().fold(String::new(), |mut output, byte| {
+        write!(&mut output, "{byte:02x}").expect("writing to a String should not fail");
+        output
+    })
 }
 
 fn new_change_id(prefix: &str) -> String {
-    format!("{prefix}-{:.0}", js_sys::Date::now())
+    let timestamp = js_sys::Date::now() as u64;
+    let random = (js_sys::Math::random() * u64::MAX as f64) as u64;
+    if prefix == "change" {
+        format!("{timestamp:016x}{random:016x}")
+    } else {
+        format!("{prefix}-{timestamp:016x}{random:016x}")
+    }
 }

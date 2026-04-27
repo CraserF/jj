@@ -1,0 +1,36 @@
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const __wbg_jjsession_free: (a: number, b: number) => void;
+export const jjsession_init: (a: any) => any;
+export const jjsession_open: (a: any) => any;
+export const jjsession_clone: (a: number, b: number, c: any) => any;
+export const jjsession_fetch: (a: number, b: any) => any;
+export const jjsession_push: (a: number, b: any) => any;
+export const jjsession_log: (a: number, b: any) => any;
+export const jjsession_status: (a: number) => any;
+export const jjsession_snapshot: (a: number, b: any) => any;
+export const jjsession_describe: (a: number, b: any) => any;
+export const jjsession_new: (a: number, b: any) => any;
+export const jjsession_rebase: (a: number, b: any) => any;
+export const jjsession_restore: (a: number, b: any) => any;
+export const jjsession_opLog: (a: number) => any;
+export const jjsession_undo: (a: number) => any;
+export const jjsession_listRefs: (a: number, b: number, c: number) => any;
+export const jjsession_resolveRef: (a: number, b: number, c: number) => any;
+export const jjsession_writeRef: (a: number, b: number, c: number, d: number, e: number) => any;
+export const jjsession_readRawObject: (a: number, b: number, c: number) => any;
+export const jjsession_writeRawObject: (a: number, b: number, c: number, d: number, e: number) => any;
+export const jjsession_dir: (a: number) => [number, number];
+export const jjsession_gitdir: (a: number) => [number, number];
+export const wasm_bindgen__closure__destroy__h91d888a8b6f09f74: (a: number, b: number) => void;
+export const wasm_bindgen__convert__closures_____invoke__hffb30fb49de9c351: (a: number, b: number, c: any) => [number, number];
+export const wasm_bindgen__convert__closures_____invoke__h96a0ce6d567e0458: (a: number, b: number, c: any, d: any) => void;
+export const __wbindgen_malloc: (a: number, b: number) => number;
+export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+export const __wbindgen_exn_store: (a: number) => void;
+export const __externref_table_alloc: () => number;
+export const __wbindgen_externrefs: WebAssembly.Table;
+export const __wbindgen_free: (a: number, b: number, c: number) => void;
+export const __externref_table_dealloc: (a: number) => void;
+export const __wbindgen_start: () => void;

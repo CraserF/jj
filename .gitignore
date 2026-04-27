@@ -1,4 +1,6 @@
 /target/
+/node_modules/
+/jj-wasm/web-tests/dist/
 /rendered-docs
 .direnv
 .envrc

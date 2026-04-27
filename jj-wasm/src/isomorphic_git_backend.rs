@@ -255,9 +255,13 @@ impl IsomorphicGitBackend {
         let value = self.call("readObject", args).await?;
         let object = Reflect::get(&value, &JsValue::from_str("object"))?;
         let object = Uint8Array::new(&object).to_vec();
-        let kind = Reflect::get(&value, &JsValue::from_str("type"))?
-            .as_string()
-            .unwrap_or_else(|| "wrapped".to_string());
+        let js_kind = Reflect::get(&value, &JsValue::from_str("type"))?.as_string();
+        let kind = match js_kind.as_deref() {
+            Some("wrapped") | None => kind_from_wrapped_object(&object)
+                .or_else(|| kind_from_commit_content(&object))
+                .unwrap_or_else(|| "wrapped".to_string()),
+            Some(kind) => kind.to_string(),
+        };
         Ok(RawGitObject {
             oid: oid.to_string(),
             kind,
@@ -280,6 +284,23 @@ impl IsomorphicGitBackend {
             .ok_or_else(|| js_util::error("`writeObject` did not return an object id"))
     }
 
+    pub async fn rewrite_commit_header(
+        &self,
+        oid: &str,
+        name: &str,
+        value: &str,
+    ) -> Result<String, JsValue> {
+        let raw = self.read_raw_object(oid).await?;
+        if raw.kind != "commit" && raw.kind != "wrapped" {
+            return Err(js_util::error(format!(
+                "object `{oid}` is `{}`, not a commit",
+                raw.kind
+            )));
+        }
+        let rewritten = rewrite_wrapped_commit_header(&raw.wrapped, name, value)?;
+        self.write_raw_object("commit", &rewritten).await
+    }
+
     async fn call(&self, method: &str, object: Object) -> Result<JsValue, JsValue> {
         let args = Array::new();
         args.push(&object);
@@ -292,4 +313,59 @@ pub struct RawGitObject {
     pub oid: String,
     pub kind: String,
     pub wrapped: Vec<u8>,
+}
+
+fn rewrite_wrapped_commit_header(
+    wrapped: &[u8],
+    name: &str,
+    value: &str,
+) -> Result<Vec<u8>, JsValue> {
+    let payload = if let Some(nul_index) = wrapped.iter().position(|byte| *byte == 0) {
+        let header = std::str::from_utf8(&wrapped[..nul_index])
+            .map_err(|err| js_util::error(format!("commit object header was not UTF-8: {err}")))?;
+        if !header.starts_with("commit ") {
+            return Err(js_util::error(format!(
+                "wrapped object header `{header}` was not a commit"
+            )));
+        }
+        &wrapped[nul_index + 1..]
+    } else {
+        wrapped
+    };
+    let payload = std::str::from_utf8(payload)
+        .map_err(|err| js_util::error(format!("commit object was not UTF-8: {err}")))?;
+    if !payload.starts_with("tree ") {
+        return Err(js_util::error(
+            "commit object did not start with a tree header",
+        ));
+    }
+    let Some(headers_end) = payload.find("\n\n") else {
+        return Err(js_util::error(
+            "commit object did not contain a message separator",
+        ));
+    };
+
+    let headers = &payload[..headers_end];
+    let message = &payload[headers_end..];
+    let filtered_headers = headers
+        .lines()
+        .filter(|line| !line.starts_with(&format!("{name} ")))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let new_payload = format!("{filtered_headers}\n{name} {value}{message}");
+    let mut new_wrapped = format!("commit {}\0", new_payload.len()).into_bytes();
+    new_wrapped.extend_from_slice(new_payload.as_bytes());
+    Ok(new_wrapped)
+}
+
+fn kind_from_wrapped_object(wrapped: &[u8]) -> Option<String> {
+    wrapped.iter().position(|byte| *byte == 0)?;
+    let space_index = wrapped.iter().position(|byte| *byte == b' ')?;
+    std::str::from_utf8(&wrapped[..space_index])
+        .ok()
+        .map(str::to_string)
+}
+
+fn kind_from_commit_content(content: &[u8]) -> Option<String> {
+    content.starts_with(b"tree ").then(|| "commit".to_string())
 }

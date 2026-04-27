@@ -103,15 +103,6 @@ impl BrowserFs {
         self.write_text(path, &text).await
     }
 
-    pub async fn read_json<T: serde::de::DeserializeOwned>(
-        &self,
-        path: &str,
-    ) -> Result<T, JsValue> {
-        let text = self.read_text(path).await?;
-        serde_json::from_str(&text)
-            .map_err(|err| js_util::error(format!("failed to decode `{path}` as JSON: {err}")))
-    }
-
     pub fn as_isomorphic_git_arg(&self) -> &JsValue {
         self.raw_fs()
     }

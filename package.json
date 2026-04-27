@@ -1,0 +1,53 @@
+{
+  "name": "@craserf/jj-wasm",
+  "version": "0.40.0-browser.0",
+  "private": true,
+  "type": "module",
+  "description": "Private browser/WebAssembly package for testing Jujutsu in web apps",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CraserF/jj.git"
+  },
+  "exports": {
+    ".": {
+      "types": "./npm/jj-wasm/index.d.ts",
+      "default": "./npm/jj-wasm/index.js"
+    },
+    "./worker": {
+      "types": "./npm/jj-wasm/worker.d.ts",
+      "default": "./npm/jj-wasm/worker.js"
+    },
+    "./worker-client": {
+      "types": "./npm/jj-wasm/worker-client.d.ts",
+      "default": "./npm/jj-wasm/worker-client.js"
+    },
+    "./types": {
+      "types": "./npm/jj-wasm/types.d.ts",
+      "default": "./npm/jj-wasm/empty.js"
+    },
+    "./wasm": "./npm/jj-wasm/pkg/jj_wasm_bg.wasm"
+  },
+  "files": [
+    "npm/jj-wasm",
+    "jj-wasm/README.md"
+  ],
+  "sideEffects": [
+    "./npm/jj-wasm/pkg/*"
+  ],
+  "scripts": {
+    "build:jj-wasm": "wasm-pack build jj-wasm --target web --out-dir ../npm/jj-wasm/pkg --release && node npm/jj-wasm/scripts/keep-pkg-artifacts.mjs",
+    "typecheck:jj-wasm": "tsc --allowJs --checkJs --noEmit --skipLibCheck --module NodeNext --moduleResolution NodeNext --target ESNext --lib ESNext,DOM npm/jj-wasm/index.js npm/jj-wasm/worker-client.js npm/jj-wasm/worker.js",
+    "verify:jj-wasm-package": "npm run build:jj-wasm && npm run typecheck:jj-wasm && npm --prefix jj-wasm/web-tests run build:wasm && npm --prefix jj-wasm/web-tests run build"
+  },
+  "dependencies": {
+    "@isomorphic-git/lightning-fs": "^4.6.0",
+    "buffer": "^6.0.3",
+    "isomorphic-git": "^1.33.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12",
+    "wasm-pack": "^0.14.0"
+  }
+}

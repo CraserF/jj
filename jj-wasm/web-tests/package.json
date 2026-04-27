@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build:wasm": "wasm-pack build .. --target web --out-dir web-tests/pkg --dev",
+    "build": "vite build",
     "dev": "vite --host 127.0.0.1",
     "test:browser": "npm run build:wasm && vite --host 127.0.0.1"
   },
