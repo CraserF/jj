@@ -20,6 +20,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::browser_fs::BrowserFs;
 use crate::isomorphic_git_backend::IsomorphicGitBackend;
+use crate::isomorphic_git_backend::RemoteFetchOptions;
 use crate::js_util;
 
 const JJ_WASM_DIR: &str = ".jj/wasm";
@@ -99,14 +100,15 @@ impl JjSession {
         let options = FetchOptions::from_js(options)?;
         let result = self
             .backend
-            .fetch(
-                options.url.as_deref(),
-                options.remote.as_deref(),
-                options.cors_proxy.as_deref(),
-                options.ref_name.as_deref(),
-                options.single_branch,
-                options.depth,
-            )
+            .fetch(RemoteFetchOptions {
+                url: options.url.as_deref(),
+                remote: options.remote.as_deref(),
+                cors_proxy: options.cors_proxy.as_deref(),
+                ref_name: options.ref_name.as_deref(),
+                remote_ref: options.remote_ref.as_deref(),
+                single_branch: options.single_branch,
+                depth: options.depth,
+            })
             .await?;
         let before_state = self.read_state_or_default().await?;
         let mut after_state = before_state.clone();
@@ -118,6 +120,7 @@ impl JjSession {
                 "url": options.url,
                 "remote": options.remote,
                 "ref": options.ref_name,
+                "remoteRef": options.remote_ref,
             }),
             Some(before_state),
             Some(after_state),
@@ -136,6 +139,7 @@ impl JjSession {
                 options.remote.as_deref(),
                 options.url.as_deref(),
                 options.ref_name.as_deref(),
+                options.remote_ref.as_deref(),
                 options.cors_proxy.as_deref(),
             )
             .await?;
@@ -149,6 +153,7 @@ impl JjSession {
                 "remote": options.remote,
                 "url": options.url,
                 "ref": options.ref_name,
+                "remoteRef": options.remote_ref,
             }),
             Some(before_state),
             Some(after_state),
@@ -770,6 +775,7 @@ struct FetchOptions {
     remote: Option<String>,
     cors_proxy: Option<String>,
     ref_name: Option<String>,
+    remote_ref: Option<String>,
     single_branch: Option<bool>,
     depth: Option<u32>,
 }
@@ -781,6 +787,7 @@ impl FetchOptions {
             remote: js_util::optional_string(&options, "remote")?,
             cors_proxy: js_util::optional_string(&options, "corsProxy")?,
             ref_name: js_util::optional_string(&options, "ref")?,
+            remote_ref: js_util::optional_string(&options, "remoteRef")?,
             single_branch: js_util::optional_bool(&options, "singleBranch")?,
             depth: js_util::optional_u32(&options, "depth")?,
         })
@@ -793,6 +800,7 @@ struct PushOptions {
     remote: Option<String>,
     cors_proxy: Option<String>,
     ref_name: Option<String>,
+    remote_ref: Option<String>,
 }
 
 impl PushOptions {
@@ -802,6 +810,7 @@ impl PushOptions {
             remote: js_util::optional_string(&options, "remote")?,
             cors_proxy: js_util::optional_string(&options, "corsProxy")?,
             ref_name: js_util::optional_string(&options, "ref")?,
+            remote_ref: js_util::optional_string(&options, "remoteRef")?,
         })
     }
 }

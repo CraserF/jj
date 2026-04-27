@@ -52,6 +52,11 @@ export default {
       "isomorphic-git/http/web",
     ],
   },
+  resolve: {
+    alias: {
+      crypto: "@craserf/jj-wasm/shims/crypto",
+    },
+  },
 };
 ```
 
@@ -69,3 +74,12 @@ await initWasm();
 const fs = new LightningFS("direct-demo");
 const session = await JjSession.init({ git, fs, dir: "/repo" });
 ```
+
+## Remote browser constraints
+
+Remote operations are backed by isomorphic-git HTTP. Browser Git servers must
+serve CORS headers for `info/refs`, `git-upload-pack`, and `git-receive-pack`,
+or requests must go through a trusted CORS proxy. Use `remoteRef` on `fetch()`
+and `push()` when the remote branch differs from the local branch, for example
+pushing a browser-created commit to `refs/heads/jj-wasm-test` during production
+tests.

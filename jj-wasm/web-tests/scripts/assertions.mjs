@@ -83,6 +83,51 @@ export function assertPackageSmokeResult(result, label) {
   assertProgress(result.progressEvents, "snapshot");
 }
 
+export function assertRemoteWorkflowResult(result) {
+  assert.equal(
+    result.statusAfterClone.changedFiles.length,
+    0,
+    "remote: clone should start with a clean working copy",
+  );
+  assert.ok(
+    Array.isArray(result.logAfterClone.commits) && result.logAfterClone.commits.length > 0,
+    "remote: clone log should include the seeded commit",
+  );
+  assert.ok(
+    normalizeRefs(result.headRefs, "refs/heads").includes("refs/heads/main"),
+    "remote: listRefs should include refs/heads/main",
+  );
+  assert.match(result.headId, COMMIT_ID, "remote: refs/heads/main should resolve to a commit id");
+  assert.equal(result.rawHeadKind, "commit", "remote: raw HEAD object should be a commit");
+  assert.match(result.secondCommit, COMMIT_ID, "remote: fixture should create a second commit");
+  assert.equal(
+    result.fetchedHeadId,
+    result.secondCommit,
+    "remote: fetch should update refs/remotes/origin/main to the second fixture commit",
+  );
+  assert.match(result.snapshot.commitId, COMMIT_ID, "remote: snapshot should create a browser commit");
+  assert.equal(result.snapshotRawKind, "commit", "remote: snapshot raw object should be a commit");
+  assert.equal(
+    result.snapshotHasChangeIdHeader,
+    true,
+    "remote: pushed browser commit should preserve a change-id header",
+  );
+  assert.equal(
+    result.pushedRefId,
+    result.snapshot.commitId,
+    "remote: push should write the browser commit to the fixture test ref",
+  );
+  assert.equal(
+    result.afterPushStatus.changedFiles.length,
+    0,
+    "remote: snapshot and push should leave the working copy clean",
+  );
+  assertProgress(result.progressEvents, "clone");
+  assertProgress(result.progressEvents, "fetch");
+  assertProgress(result.progressEvents, "push");
+  assertProgress(result.progressEvents, "snapshot");
+}
+
 function assertNoVcsPaths(status, label) {
   for (const file of status.changedFiles) {
     assert.equal(
@@ -105,4 +150,14 @@ function assertProgress(events, method) {
     events.some((event) => event.method === method && event.phase === "done"),
     `${method} should emit done progress`,
   );
+}
+
+function normalizeRefs(refs, prefix) {
+  assert.ok(Array.isArray(refs), "listRefs should return an array");
+  return refs.map((ref) => {
+    if (ref.startsWith("refs/")) {
+      return ref;
+    }
+    return `${prefix.replace(/\/$/, "")}/${ref}`;
+  });
 }

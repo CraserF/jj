@@ -106,6 +106,11 @@ export default {
       "isomorphic-git/http/web",
     ],
   },
+  resolve: {
+    alias: {
+      crypto: "@craserf/jj-wasm/shims/crypto",
+    },
+  },
 };
 ```
 
@@ -155,6 +160,29 @@ support CORS or go through a proxy. For authenticated remotes, add auth handling
 in the worker package before using private repositories; the current worker
 entrypoint does not transmit credentials by default.
 
+### Remote fixture and browser constraints
+
+`npm run test:jj-wasm-browser` starts a local fixture server for remote Git
+coverage. The fixture creates a temporary bare repository, seeds `main`, serves
+it through `git http-backend`, and adds permissive CORS and preflight headers so
+isomorphic-git can use it from the browser. The test then clones through the
+worker client, fetches a second server-side commit, snapshots a browser change,
+pushes it to `refs/heads/jj-wasm-test`, and verifies the bare repo received the
+new ref.
+
+This fixture is intentionally narrow:
+
+- It validates browser HTTP behavior without using GitHub credentials or a
+  deployed proxy.
+- Push tests use a dedicated test ref and never overwrite `main`.
+- Authenticated/private remotes, credential callbacks, and production CORS proxy
+  deployment remain separate follow-up work.
+
+For production-test apps, configure remotes so the browser can reach
+`info/refs`, `git-upload-pack`, and `git-receive-pack` with CORS headers, or
+route requests through a trusted proxy. Use `remoteRef` in `push()` when writing
+to a staging/test branch instead of a user branch.
+
 ## Maintainer commands
 
 From the repository root:
@@ -198,7 +226,9 @@ root. Coverage status is tracked in `jj-wasm/COVERAGE.md`.
   `new Worker(new URL(..., import.meta.url), { type: "module" })`.
   In Vite, exclude `@craserf/jj-wasm` and include `buffer`,
   `isomorphic-git`, `isomorphic-git/http/web`, and
-  `@isomorphic-git/lightning-fs` in `optimizeDeps`.
+  `@isomorphic-git/lightning-fs` in `optimizeDeps`. Alias `crypto` to
+  `@craserf/jj-wasm/shims/crypto` so isomorphic-git pack reads work in the
+  browser.
 - Storage quota: large repos can exceed browser storage limits; start with
   shallow clones and small fixtures.
 - CORS: browser remotes fail unless the Git server has CORS enabled or a proxy

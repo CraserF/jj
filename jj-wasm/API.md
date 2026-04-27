@@ -11,6 +11,8 @@ entrypoints below.
 - `@craserf/jj-wasm/worker-client`: main-thread worker client.
 - `@craserf/jj-wasm/worker`: worker module for bundlers.
 - `@craserf/jj-wasm/types`: type-only API surface.
+- `@craserf/jj-wasm/shims/crypto`: Vite/browser alias target for the small
+  `crypto.createHash("sha1")` surface isomorphic-git uses while reading packs.
 
 ## Worker Client
 
@@ -46,6 +48,31 @@ Progress events are currently lifecycle events for `init`, `open`, `clone`,
 - `log(options)`, `opLog()`
 - `listRefs(prefix)`, `resolveRef(ref)`, `writeRef(ref, oid)`
 - `readRawObject(oid)`, `writeRawObject(type, wrapped)`
+
+### Remote Options
+
+`clone(url, options)` uses the session options `ref`, `singleBranch`, `depth`,
+and `corsProxy` to pass through to isomorphic-git.
+
+`fetch(options)` accepts:
+
+- `url`: explicit remote URL. If omitted, isomorphic-git uses the configured
+  remote.
+- `remote`: configured remote name, usually `origin`.
+- `ref`: local branch/ref context.
+- `remoteRef`: branch/ref to fetch from the remote. Use this with
+  `singleBranch`.
+- `corsProxy`: optional CORS proxy URL.
+- `singleBranch` and `depth`: shallow/single-branch fetch controls.
+
+`push(options)` accepts:
+
+- `url`: explicit receiving remote URL.
+- `remote`: configured remote name, usually `origin`.
+- `ref`: local branch/ref to push.
+- `remoteRef`: receiving branch/ref on the remote, for example
+  `refs/heads/jj-wasm-test`.
+- `corsProxy`: optional CORS proxy URL.
 
 ## Core Types
 

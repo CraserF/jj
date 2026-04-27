@@ -51,6 +51,11 @@ await writeFile(
       "isomorphic-git/http/web",
     ],
   },
+  resolve: {
+    alias: {
+      crypto: "@craserf/jj-wasm/shims/crypto",
+    },
+  },
 };
 `,
 );

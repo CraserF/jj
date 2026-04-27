@@ -3,7 +3,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
-import { assertWorkflowResult, assertWorkerWorkflowResult } from "./assertions.mjs";
+import {
+  assertRemoteWorkflowResult,
+  assertWorkflowResult,
+  assertWorkerWorkflowResult,
+} from "./assertions.mjs";
+import { startGitHttpFixture } from "./git-http-fixture.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const webTestsDir = path.resolve(scriptDir, "..");
@@ -12,6 +17,7 @@ const viteBin = path.join(repoRoot, "node_modules/.bin/vite");
 const port = Number(process.env.JJ_WASM_BROWSER_PORT ?? 5181);
 const baseUrl = `http://127.0.0.1:${port}`;
 
+const gitFixture = await startGitHttpFixture();
 const server = spawn(
   viteBin,
   ["--host", "127.0.0.1", "--port", String(port), "--strictPort"],
@@ -39,12 +45,21 @@ try {
     const workerPage = await browser.newPage();
     const worker = await readHarnessResult(workerPage, `${baseUrl}/worker.html`);
     assertWorkerWorkflowResult(worker);
+
+    const remotePage = await browser.newPage();
+    const remoteUrl = new URL(`${baseUrl}/remote.html`);
+    remoteUrl.searchParams.set("remoteUrl", gitFixture.url);
+    remoteUrl.searchParams.set("controlUrl", gitFixture.controlUrl);
+    remoteUrl.searchParams.set("pushRef", "refs/heads/jj-wasm-test");
+    const remote = await readHarnessResult(remotePage, String(remoteUrl));
+    assertRemoteWorkflowResult(remote);
   } finally {
     await browser.close();
   }
   console.log("jj-wasm browser assertions passed");
 } finally {
   server.kill();
+  await gitFixture.close();
 }
 
 async function readHarnessResult(page, url) {

@@ -84,6 +84,7 @@ export interface FetchOptions {
   remote?: string;
   corsProxy?: string;
   ref?: string;
+  remoteRef?: string;
   singleBranch?: boolean;
   depth?: number;
 }
@@ -93,6 +94,7 @@ export interface PushOptions {
   remote?: string;
   corsProxy?: string;
   ref?: string;
+  remoteRef?: string;
 }
 
 export interface StatusFile {

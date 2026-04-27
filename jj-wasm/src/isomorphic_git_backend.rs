@@ -31,6 +31,16 @@ pub struct IsomorphicGitBackend {
     cache: Option<JsValue>,
 }
 
+pub struct RemoteFetchOptions<'a> {
+    pub url: Option<&'a str>,
+    pub remote: Option<&'a str>,
+    pub cors_proxy: Option<&'a str>,
+    pub ref_name: Option<&'a str>,
+    pub remote_ref: Option<&'a str>,
+    pub single_branch: Option<bool>,
+    pub depth: Option<u32>,
+}
+
 impl IsomorphicGitBackend {
     pub fn new(
         git: JsValue,
@@ -106,15 +116,7 @@ impl IsomorphicGitBackend {
         self.call_remote("clone", args).await
     }
 
-    pub async fn fetch(
-        &self,
-        url: Option<&str>,
-        remote: Option<&str>,
-        cors_proxy: Option<&str>,
-        ref_name: Option<&str>,
-        single_branch: Option<bool>,
-        depth: Option<u32>,
-    ) -> Result<JsValue, JsValue> {
+    pub async fn fetch(&self, options: RemoteFetchOptions<'_>) -> Result<JsValue, JsValue> {
         let args = self.base_args()?;
         let http = self.http.as_ref().ok_or_else(|| {
             js_util::coded_error(
@@ -123,12 +125,13 @@ impl IsomorphicGitBackend {
             )
         })?;
         js_util::set_prop(&args, "http", http)?;
-        js_util::set_str_if_some(&args, "url", url)?;
-        js_util::set_str_if_some(&args, "remote", remote)?;
-        js_util::set_str_if_some(&args, "corsProxy", cors_proxy)?;
-        js_util::set_str_if_some(&args, "ref", ref_name)?;
-        js_util::set_bool_if_some(&args, "singleBranch", single_branch)?;
-        js_util::set_u32_if_some(&args, "depth", depth)?;
+        js_util::set_str_if_some(&args, "url", options.url)?;
+        js_util::set_str_if_some(&args, "remote", options.remote)?;
+        js_util::set_str_if_some(&args, "corsProxy", options.cors_proxy)?;
+        js_util::set_str_if_some(&args, "ref", options.ref_name)?;
+        js_util::set_str_if_some(&args, "remoteRef", options.remote_ref)?;
+        js_util::set_bool_if_some(&args, "singleBranch", options.single_branch)?;
+        js_util::set_u32_if_some(&args, "depth", options.depth)?;
         self.call_remote("fetch", args).await
     }
 
@@ -137,6 +140,7 @@ impl IsomorphicGitBackend {
         remote: Option<&str>,
         url: Option<&str>,
         ref_name: Option<&str>,
+        remote_ref: Option<&str>,
         cors_proxy: Option<&str>,
     ) -> Result<JsValue, JsValue> {
         let args = self.base_args()?;
@@ -150,6 +154,7 @@ impl IsomorphicGitBackend {
         js_util::set_str_if_some(&args, "remote", remote)?;
         js_util::set_str_if_some(&args, "url", url)?;
         js_util::set_str_if_some(&args, "ref", ref_name)?;
+        js_util::set_str_if_some(&args, "remoteRef", remote_ref)?;
         js_util::set_str_if_some(&args, "corsProxy", cors_proxy)?;
         self.call_remote("push", args).await
     }

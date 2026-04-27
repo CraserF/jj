@@ -26,6 +26,10 @@
       "types": "./npm/jj-wasm/types.d.ts",
       "default": "./npm/jj-wasm/empty.js"
     },
+    "./shims/crypto": {
+      "types": "./npm/jj-wasm/shims/crypto.d.ts",
+      "default": "./npm/jj-wasm/shims/crypto.js"
+    },
     "./wasm": "./npm/jj-wasm/pkg/jj_wasm_bg.wasm"
   },
   "files": [
@@ -39,16 +43,17 @@
   ],
   "scripts": {
     "build:jj-wasm": "wasm-pack build jj-wasm --target web --out-dir ../npm/jj-wasm/pkg --release && node npm/jj-wasm/scripts/keep-pkg-artifacts.mjs",
-    "typecheck:jj-wasm": "tsc --allowJs --checkJs --noEmit --skipLibCheck --module NodeNext --moduleResolution NodeNext --target ESNext --lib ESNext,DOM npm/jj-wasm/index.js npm/jj-wasm/worker-client.js npm/jj-wasm/worker.js",
+    "typecheck:jj-wasm": "tsc --allowJs --checkJs --noEmit --skipLibCheck --module NodeNext --moduleResolution NodeNext --target ESNext --lib ESNext,DOM npm/jj-wasm/index.js npm/jj-wasm/worker-client.js npm/jj-wasm/worker.js npm/jj-wasm/shims/crypto.js",
     "verify:jj-wasm-package": "npm run build:jj-wasm && npm run typecheck:jj-wasm && npm --prefix jj-wasm/web-tests run build:wasm && npm --prefix jj-wasm/web-tests run build",
-    "test:jj-wasm-browser": "npm --prefix jj-wasm/web-tests run build:wasm && node jj-wasm/web-tests/scripts/run-browser-tests.mjs",
+    "test:jj-wasm-browser": "npm --prefix jj-wasm/web-tests run build:wasm && npm run build:jj-wasm && node jj-wasm/web-tests/scripts/run-browser-tests.mjs",
     "smoke:jj-wasm-package": "node npm/jj-wasm/scripts/smoke-package.mjs",
     "verify:jj-wasm-all": "cargo check --target wasm32-unknown-unknown -p jj-wasm && cargo clippy --target wasm32-unknown-unknown -p jj-wasm -- -D warnings && cargo check --target wasm32-unknown-unknown -p jj-lib --no-default-features && cargo test -p jj-wasm && npm run verify:jj-wasm-package && npm run test:jj-wasm-browser && npm run smoke:jj-wasm-package"
   },
   "dependencies": {
     "@isomorphic-git/lightning-fs": "^4.6.0",
     "buffer": "^6.0.3",
-    "isomorphic-git": "^1.33.1"
+    "isomorphic-git": "^1.33.1",
+    "sha.js": "^2.4.12"
   },
   "devDependencies": {
     "playwright": "^1.59.1",

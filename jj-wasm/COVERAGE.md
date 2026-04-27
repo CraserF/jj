@@ -5,7 +5,7 @@ This map tracks the private production-test confidence suite for
 
 ## Commands
 
-- `npm run test:jj-wasm-browser`: direct ESM and worker-client browser workflow coverage.
+- `npm run test:jj-wasm-browser`: direct ESM, worker-client, and local CORS Git fixture browser workflow coverage.
 - `npm run smoke:jj-wasm-package`: packed private package install, dev server, and production preview smoke.
 - `npm run verify:jj-wasm-all`: Rust gates, package build/typecheck, browser tests, and package smoke.
 
@@ -15,9 +15,9 @@ This map tracks the private production-test confidence suite for
 | --- | --- | --- |
 | `JjSession.init` / worker `init` | covered | `npm run test:jj-wasm-browser`, `npm run smoke:jj-wasm-package` |
 | `JjSession.open` / worker `open` | covered | `npm run test:jj-wasm-browser` |
-| `JjSession.clone` / worker `clone` | not covered | Deferred until remote fixture coverage |
-| `fetch` | not covered | Deferred until remote fixture coverage |
-| `push` | not covered | Deferred until remote fixture coverage |
+| `JjSession.clone` / worker `clone` | covered | `npm run test:jj-wasm-browser` with local Git HTTP fixture |
+| `fetch` | covered | `npm run test:jj-wasm-browser` with local Git HTTP fixture |
+| `push` | covered | `npm run test:jj-wasm-browser` with local Git HTTP fixture |
 | `status` | covered | `npm run test:jj-wasm-browser`, `npm run smoke:jj-wasm-package` |
 | `snapshot` | covered | `npm run test:jj-wasm-browser`, `npm run smoke:jj-wasm-package` |
 | `describe` | covered | `npm run test:jj-wasm-browser` |
@@ -27,8 +27,8 @@ This map tracks the private production-test confidence suite for
 | `log` | covered | `npm run test:jj-wasm-browser` |
 | `opLog` | covered | `npm run test:jj-wasm-browser` |
 | `rebase` | unsupported-tested | `npm run test:jj-wasm-browser` |
-| `listRefs` | smoke-covered | `npm run verify:jj-wasm-all` through package type/build gates |
-| `resolveRef` | smoke-covered | `npm run verify:jj-wasm-all` through package type/build gates |
+| `listRefs` | covered | `npm run test:jj-wasm-browser` with local Git HTTP fixture |
+| `resolveRef` | covered | `npm run test:jj-wasm-browser` with local Git HTTP fixture |
 | `writeRef` | smoke-covered | `npm run verify:jj-wasm-all` through package type/build gates |
 | `readRawObject` | covered | `npm run test:jj-wasm-browser`, `npm run smoke:jj-wasm-package` |
 | `writeRawObject` | smoke-covered | `npm run verify:jj-wasm-all` through package type/build gates |
@@ -38,7 +38,7 @@ This map tracks the private production-test confidence suite for
 
 ## Current Gaps
 
-- Remote fixture coverage for `clone`, `fetch`, `push`, auth, and CORS/proxy behavior.
+- Authenticated/private remotes and deployed CORS proxy behavior.
 - Native jj parity checks for selected commit/tree IDs.
 - Multi-tab locking beyond the single-repo worker lock rejection case.
 - Conflict, submodule, symlink, executable bit, signing, and advanced rewrite behavior.
