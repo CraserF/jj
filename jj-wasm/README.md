@@ -30,3 +30,17 @@ const session = await JjSession.clone("https://github.com/example/project", {
 console.log(await session.log({ limit: 10 }));
 console.log(await session.status());
 ```
+
+## Browser workflow harness
+
+The `web-tests` directory contains a small Vite harness that exercises the
+browser working-copy loop with LightningFS and isomorphic-git.
+
+```sh
+cd jj-wasm/web-tests
+npm install
+npm run build:wasm
+npm run dev
+```
+
+Open the Vite URL and check that the page reports `data-status="done"`.

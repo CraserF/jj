@@ -161,6 +161,7 @@ impl IsomorphicGitBackend {
         let args = self.base_args()?;
         js_util::set_prop(&args, "ref", &JsValue::from_str(ref_name))?;
         js_util::set_prop(&args, "value", &JsValue::from_str(oid))?;
+        js_util::set_bool_if_some(&args, "force", Some(true))?;
         self.call("writeRef", args).await
     }
 
@@ -197,6 +198,7 @@ impl IsomorphicGitBackend {
         js_util::set_prop(&args, "author", author)?;
         js_util::set_if_some(&args, "committer", committer)?;
         js_util::set_bool_if_some(&args, "amend", Some(amend))?;
+        js_util::set_bool_if_some(&args, "noUpdateBranch", amend.then_some(true))?;
         js_util::set_str_if_some(&args, "ref", ref_name)?;
         if !parents.is_empty() {
             let parent_array = Array::new();

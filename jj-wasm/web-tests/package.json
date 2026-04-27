@@ -1,0 +1,19 @@
+{
+  "name": "jj-wasm-web-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:wasm": "wasm-pack build .. --target web --out-dir web-tests/pkg --dev",
+    "dev": "vite --host 127.0.0.1",
+    "test:browser": "npm run build:wasm && vite --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@isomorphic-git/lightning-fs": "^4.6.0",
+    "buffer": "^6.0.3",
+    "isomorphic-git": "^1.33.1"
+  },
+  "devDependencies": {
+    "vite": "^7.1.12",
+    "wasm-pack": "^0.14.0"
+  }
+}

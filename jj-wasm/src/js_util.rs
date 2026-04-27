@@ -121,7 +121,11 @@ pub async fn call_promise(
 }
 
 pub fn to_js<T: Serialize>(value: &T) -> Result<JsValue, JsValue> {
-    serde_wasm_bindgen::to_value(value)
+    let serializer = serde_wasm_bindgen::Serializer::new()
+        .serialize_maps_as_objects(true)
+        .serialize_missing_as_null(true);
+    value
+        .serialize(&serializer)
         .map_err(|err| error(format!("failed to serialize value for JavaScript: {err}")))
 }
 

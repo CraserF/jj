@@ -182,8 +182,14 @@ impl JjSession {
         let status_matrix = self.backend.status_matrix().await?;
         let rows = status_rows_from_js(status_matrix)?;
         let state = self.read_state_or_default().await?;
+        let visible_rows = rows
+            .iter()
+            .filter(|row| !is_jj_metadata_path(&row.filepath))
+            .cloned()
+            .collect::<Vec<_>>();
         let changed_files = rows
             .iter()
+            .filter(|row| !is_jj_metadata_path(&row.filepath))
             .filter(|row| row.head != row.workdir || row.workdir != row.stage)
             .map(StatusFile::from)
             .collect::<Vec<_>>();
@@ -191,7 +197,7 @@ impl JjSession {
             current_change: state.current_change(),
             head: state.head,
             changed_files,
-            summary: StatusSummary::from_rows(&rows),
+            summary: StatusSummary::from_rows(&visible_rows),
         };
         js_util::to_js(&value)
     }
@@ -236,6 +242,11 @@ impl JjSession {
                     &[],
                 )
                 .await?;
+            if let Some(ref_name) = options.ref_name.as_deref() {
+                self.backend.write_ref(ref_name, &commit_id).await?;
+            } else {
+                self.reset_current_ref(&commit_id).await?;
+            }
             after_state.set_current_commit(commit_id.clone());
             after_state.head = Some(commit_id.clone());
             Some(commit_id)
@@ -560,6 +571,7 @@ impl JjSession {
         let rows = status_rows_from_js(status_matrix)?;
         let changed_rows = rows
             .iter()
+            .filter(|row| !is_jj_metadata_path(&row.filepath))
             .filter(|row| row.head != row.workdir)
             .cloned()
             .collect::<Vec<_>>();
@@ -1140,6 +1152,10 @@ fn status_cell(value: &serde_json::Value, name: &str) -> Result<u8, JsValue> {
         .ok_or_else(|| js_util::error(format!("status matrix {name} cell was not a number")))?;
     u8::try_from(number)
         .map_err(|_| js_util::error(format!("status matrix {name} cell was out of range")))
+}
+
+fn is_jj_metadata_path(path: &str) -> bool {
+    path == ".jj" || path.starts_with(".jj/")
 }
 
 fn new_change_id(prefix: &str) -> String {
