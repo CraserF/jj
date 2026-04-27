@@ -30,7 +30,9 @@
   },
   "files": [
     "npm/jj-wasm",
-    "jj-wasm/README.md"
+    "jj-wasm/README.md",
+    "jj-wasm/API.md",
+    "jj-wasm/COVERAGE.md"
   ],
   "sideEffects": [
     "./npm/jj-wasm/pkg/*"
@@ -38,7 +40,10 @@
   "scripts": {
     "build:jj-wasm": "wasm-pack build jj-wasm --target web --out-dir ../npm/jj-wasm/pkg --release && node npm/jj-wasm/scripts/keep-pkg-artifacts.mjs",
     "typecheck:jj-wasm": "tsc --allowJs --checkJs --noEmit --skipLibCheck --module NodeNext --moduleResolution NodeNext --target ESNext --lib ESNext,DOM npm/jj-wasm/index.js npm/jj-wasm/worker-client.js npm/jj-wasm/worker.js",
-    "verify:jj-wasm-package": "npm run build:jj-wasm && npm run typecheck:jj-wasm && npm --prefix jj-wasm/web-tests run build:wasm && npm --prefix jj-wasm/web-tests run build"
+    "verify:jj-wasm-package": "npm run build:jj-wasm && npm run typecheck:jj-wasm && npm --prefix jj-wasm/web-tests run build:wasm && npm --prefix jj-wasm/web-tests run build",
+    "test:jj-wasm-browser": "npm --prefix jj-wasm/web-tests run build:wasm && node jj-wasm/web-tests/scripts/run-browser-tests.mjs",
+    "smoke:jj-wasm-package": "node npm/jj-wasm/scripts/smoke-package.mjs",
+    "verify:jj-wasm-all": "cargo check --target wasm32-unknown-unknown -p jj-wasm && cargo clippy --target wasm32-unknown-unknown -p jj-wasm -- -D warnings && cargo check --target wasm32-unknown-unknown -p jj-lib --no-default-features && cargo test -p jj-wasm && npm run verify:jj-wasm-package && npm run test:jj-wasm-browser && npm run smoke:jj-wasm-package"
   },
   "dependencies": {
     "@isomorphic-git/lightning-fs": "^4.6.0",
@@ -46,6 +51,7 @@
     "isomorphic-git": "^1.33.1"
   },
   "devDependencies": {
+    "playwright": "^1.59.1",
     "typescript": "^5.9.3",
     "vite": "^7.1.12",
     "wasm-pack": "^0.14.0"

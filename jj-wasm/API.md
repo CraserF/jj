@@ -18,6 +18,7 @@ entrypoints below.
 import { createJjWorkerClient } from "@craserf/jj-wasm/worker-client";
 
 const jj = createJjWorkerClient();
+// Optional: createJjWorkerClient({ requestTimeoutMs: 30_000 })
 await jj.init({ fsName: "demo", dir: "/repo", defaultBranch: "main" });
 await jj.writeFile("README.md", "hello\n");
 await jj.snapshot({ message: "initial" });

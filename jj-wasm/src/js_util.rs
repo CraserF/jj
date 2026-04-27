@@ -26,14 +26,35 @@ pub fn error(message: impl AsRef<str>) -> JsValue {
     js_sys::Error::new(message.as_ref()).into()
 }
 
+pub fn coded_error(code: &str, message: impl AsRef<str>) -> JsValue {
+    let error = error(message);
+    drop(Reflect::set(
+        &error,
+        &JsValue::from_str("code"),
+        &JsValue::from_str(code),
+    ));
+    error
+}
+
+pub fn error_message(error: &JsValue) -> String {
+    get_prop(error, "message")
+        .ok()
+        .and_then(|message| message.as_string())
+        .or_else(|| error.as_string())
+        .unwrap_or_else(|| "unknown JavaScript error".to_string())
+}
+
 pub fn unsupported(name: &str) -> JsValue {
-    error(format!(
-        "`{name}` is exported by jj-wasm, but the first browser milestone only \
+    coded_error(
+        "UNSUPPORTED_OPERATION",
+        format!(
+            "`{name}` is exported by jj-wasm, but the first browser milestone only \
          wires initialization, clone/fetch, raw Git object access, log, status, \
          snapshot metadata, and op-log metadata. Full jj operation semantics \
          still need the browser working-copy/op-store/index adapters to be \
          connected to jj-lib."
-    ))
+        ),
+    )
 }
 
 pub fn get_prop(object: &JsValue, name: &str) -> Result<JsValue, JsValue> {

@@ -1,3 +1,6 @@
+// @ts-ignore Vite resolves this query to a bundled worker asset URL.
+import defaultWorkerUrl from "./worker.js?worker&url";
+
 const SESSION_METHODS = [
   "fetch",
   "push",
@@ -22,9 +25,10 @@ const SESSION_METHODS = [
 ];
 
 export function createJjWorkerClient(options = {}) {
+  const requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
   const worker =
     options.worker ??
-    new Worker(options.workerUrl ?? new URL("./worker.js", import.meta.url), {
+    new Worker(options.workerUrl ?? defaultWorkerUrl ?? new URL("./worker.js", import.meta.url), {
       type: "module",
       name: options.name ?? "jj-wasm",
     });
@@ -45,6 +49,7 @@ export function createJjWorkerClient(options = {}) {
       return;
     }
     pending.delete(message.id);
+    globalThis.clearTimeout(request.timeout);
     if (message.type === "error") {
       request.reject(toWorkerError(message.error));
     } else {
@@ -52,16 +57,28 @@ export function createJjWorkerClient(options = {}) {
     }
   });
   worker.addEventListener("error", (event) => {
-    rejectAll(new Error(event.message || "jj-wasm worker failed to load"));
+    rejectAll(createWorkerError("WORKER_LOAD_FAILURE", event.message || "jj-wasm worker failed to load"));
   });
   worker.addEventListener("messageerror", () => {
-    rejectAll(new Error("jj-wasm worker sent an unreadable message"));
+    rejectAll(createWorkerError("WORKER_LOAD_FAILURE", "jj-wasm worker sent an unreadable message"));
   });
 
   function call(method, ...args) {
     const id = nextId++;
     return new Promise((resolve, reject) => {
-      pending.set(id, { resolve, reject });
+      const timeout =
+        requestTimeoutMs > 0
+          ? globalThis.setTimeout(() => {
+              pending.delete(id);
+              reject(
+                createWorkerError(
+                  "REQUEST_TIMEOUT",
+                  `jj-wasm worker request ${method} timed out after ${requestTimeoutMs}ms`,
+                ),
+              );
+            }, requestTimeoutMs)
+          : undefined;
+      pending.set(id, { resolve, reject, timeout });
       worker.postMessage({ id, method, args });
     });
   }
@@ -79,7 +96,7 @@ export function createJjWorkerClient(options = {}) {
         await call("dispose");
       } finally {
         worker.terminate();
-        rejectAll(new Error("jj-wasm worker was disposed"));
+        rejectAll(createWorkerError("WORKER_DISPOSED", "jj-wasm worker was disposed"));
         progressListeners.clear();
       }
     },
@@ -93,10 +110,17 @@ export function createJjWorkerClient(options = {}) {
 
   function rejectAll(error) {
     for (const request of pending.values()) {
+      globalThis.clearTimeout(request.timeout);
       request.reject(error);
     }
     pending.clear();
   }
+}
+
+function createWorkerError(code, message) {
+  const error = /** @type {Error & { code?: string }} */ (new Error(message));
+  error.code = code;
+  return error;
 }
 
 function toWorkerError(serialized) {

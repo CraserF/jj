@@ -163,10 +163,16 @@ From the repository root:
 npm install
 npm run build:jj-wasm
 npm run verify:jj-wasm-package
+npm run test:jj-wasm-browser
+npm run smoke:jj-wasm-package
+npm run verify:jj-wasm-all
 ```
 
 `build:jj-wasm` writes release artifacts to `npm/jj-wasm/pkg`. Commit those
 artifacts with the wrapper files when updating the private Git dependency.
+`verify:jj-wasm-all` is the production-test gate for this private package.
+It runs Rust wasm checks, package build/typecheck, browser assertions, and the
+packed-package smoke test.
 
 ## Browser workflow harness
 
@@ -181,6 +187,8 @@ npm run dev
 ```
 
 Open the Vite URL and check that the page reports `data-status="done"`.
+For automated assertions, run `npm run test:jj-wasm-browser` from the repo
+root. Coverage status is tracked in `jj-wasm/COVERAGE.md`.
 
 ## Troubleshooting
 

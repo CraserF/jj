@@ -20,7 +20,7 @@ branch name.
 ```js
 import { createJjWorkerClient } from "@craserf/jj-wasm/worker-client";
 
-const jj = createJjWorkerClient();
+const jj = createJjWorkerClient({ requestTimeoutMs: 30_000 });
 await jj.init({ fsName: "demo", dir: "/repo", defaultBranch: "main" });
 await jj.writeFile("README.md", "hello from jj-wasm\n");
 await jj.snapshot({

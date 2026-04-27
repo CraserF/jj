@@ -229,6 +229,7 @@ export interface CreateWorkerClientOptions {
   worker?: Worker;
   workerUrl?: string | URL;
   name?: string;
+  requestTimeoutMs?: number;
 }
 
 export interface CreateSessionOptions extends JjSessionOptions {

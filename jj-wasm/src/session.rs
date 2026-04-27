@@ -375,10 +375,18 @@ impl JjSession {
             .find(|operation| operation.before_state.is_some())
             .cloned()
         else {
-            return Err(js_util::error("no undoable operation found"));
+            return Err(js_util::coded_error(
+                "NOTHING_TO_UNDO",
+                "no undoable operation found",
+            ));
         };
         let before_undo = self.read_state_or_default().await?;
-        let restore_state = operation_to_undo.before_state.clone().unwrap();
+        let Some(restore_state) = operation_to_undo.before_state.clone() else {
+            return Err(js_util::coded_error(
+                "NOTHING_TO_UNDO",
+                "selected operation did not record a restorable state",
+            ));
+        };
         if let Some(previous_head) = operation_to_undo.previous_head.as_deref() {
             self.reset_current_ref(previous_head).await?;
         }
@@ -1195,19 +1203,25 @@ fn migrate_state(mut state: RepoState, path: &str) -> Result<RepoState, JsValue>
         state.schema_version = CURRENT_SCHEMA_VERSION;
     }
     if state.schema_version != CURRENT_SCHEMA_VERSION {
-        return Err(js_util::error(format!(
-            "unsupported jj-wasm state schema {} in `{path}`; supported schema is {}",
-            state.schema_version, CURRENT_SCHEMA_VERSION
-        )));
+        return Err(js_util::coded_error(
+            "CORRUPT_STATE",
+            format!(
+                "unsupported jj-wasm state schema {} in `{path}`; supported schema is {}",
+                state.schema_version, CURRENT_SCHEMA_VERSION
+            ),
+        ));
     }
     Ok(state)
 }
 
 fn corrupt_state_error(path: &str, err: serde_json::Error) -> JsValue {
-    js_util::error(format!(
-        "failed to decode jj-wasm metadata `{path}`: {err}. Back up the browser filesystem if \
+    js_util::coded_error(
+        "CORRUPT_STATE",
+        format!(
+            "failed to decode jj-wasm metadata `{path}`: {err}. Back up the browser filesystem if \
          needed, then delete `{path}` or reset the repo to recover."
-    ))
+        ),
+    )
 }
 
 fn is_vcs_metadata_path(path: &str) -> bool {

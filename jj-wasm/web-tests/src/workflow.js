@@ -26,6 +26,8 @@ export async function runWorkflow() {
     defaultBranch: "main",
   });
 
+  await pfs.writeFile(`${dir}/.jj/manual-ignore-check`, "ignored jj metadata\n", "utf8");
+  await pfs.writeFile(`${dir}/.git/manual-ignore-check`, "ignored git metadata\n", "utf8");
   await pfs.writeFile(`${dir}/README.md`, "hello from jj-wasm\n", "utf8");
 
   const initialStatus = await session.status();
@@ -33,6 +35,7 @@ export async function runWorkflow() {
     message: "initial browser snapshot",
     author: AUTHOR,
   });
+  const afterSnapshotStatus = await session.status();
   const described = await session.describe({
     message: "describe browser snapshot",
     author: AUTHOR,
@@ -53,17 +56,28 @@ export async function runWorkflow() {
     author: AUTHOR,
   });
   const undo = await session.undo();
+  const reopened = await JjSession.open({
+    git,
+    fs,
+    dir,
+    defaultBranch: "main",
+  });
+  const reopenedStatus = await reopened.status();
+  const reopenedOpLog = await reopened.opLog();
   const opLog = await session.opLog();
   const log = await session.log({ limit: 10 });
 
   return {
     initialStatus,
     snapshot,
+    afterSnapshotStatus,
     described,
     modifiedStatus,
     nextChange,
     restored,
     undo,
+    reopenedStatus,
+    reopenedOpLog,
     opLog,
     log,
     rawCommitMetadata: {

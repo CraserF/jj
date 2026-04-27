@@ -92,7 +92,10 @@ impl IsomorphicGitBackend {
     ) -> Result<JsValue, JsValue> {
         let args = self.base_args()?;
         let http = self.http.as_ref().ok_or_else(|| {
-            js_util::error("`http` is required for browser clone/fetch/push operations")
+            js_util::coded_error(
+                "REMOTE_FAILURE",
+                "`http` is required for browser clone/fetch/push operations",
+            )
         })?;
         js_util::set_prop(&args, "http", http)?;
         js_util::set_prop(&args, "url", &JsValue::from_str(url))?;
@@ -100,7 +103,7 @@ impl IsomorphicGitBackend {
         js_util::set_str_if_some(&args, "ref", ref_name)?;
         js_util::set_bool_if_some(&args, "singleBranch", single_branch)?;
         js_util::set_u32_if_some(&args, "depth", depth)?;
-        self.call("clone", args).await
+        self.call_remote("clone", args).await
     }
 
     pub async fn fetch(
@@ -114,7 +117,10 @@ impl IsomorphicGitBackend {
     ) -> Result<JsValue, JsValue> {
         let args = self.base_args()?;
         let http = self.http.as_ref().ok_or_else(|| {
-            js_util::error("`http` is required for browser clone/fetch/push operations")
+            js_util::coded_error(
+                "REMOTE_FAILURE",
+                "`http` is required for browser clone/fetch/push operations",
+            )
         })?;
         js_util::set_prop(&args, "http", http)?;
         js_util::set_str_if_some(&args, "url", url)?;
@@ -123,7 +129,7 @@ impl IsomorphicGitBackend {
         js_util::set_str_if_some(&args, "ref", ref_name)?;
         js_util::set_bool_if_some(&args, "singleBranch", single_branch)?;
         js_util::set_u32_if_some(&args, "depth", depth)?;
-        self.call("fetch", args).await
+        self.call_remote("fetch", args).await
     }
 
     pub async fn push(
@@ -135,14 +141,17 @@ impl IsomorphicGitBackend {
     ) -> Result<JsValue, JsValue> {
         let args = self.base_args()?;
         let http = self.http.as_ref().ok_or_else(|| {
-            js_util::error("`http` is required for browser clone/fetch/push operations")
+            js_util::coded_error(
+                "REMOTE_FAILURE",
+                "`http` is required for browser clone/fetch/push operations",
+            )
         })?;
         js_util::set_prop(&args, "http", http)?;
         js_util::set_str_if_some(&args, "remote", remote)?;
         js_util::set_str_if_some(&args, "url", url)?;
         js_util::set_str_if_some(&args, "ref", ref_name)?;
         js_util::set_str_if_some(&args, "corsProxy", cors_proxy)?;
-        self.call("push", args).await
+        self.call_remote("push", args).await
     }
 
     pub async fn list_refs(&self, ref_prefix: Option<&str>) -> Result<JsValue, JsValue> {
@@ -305,6 +314,15 @@ impl IsomorphicGitBackend {
         let args = Array::new();
         args.push(&object);
         js_util::call_promise(&self.git, method, &args).await
+    }
+
+    async fn call_remote(&self, method: &str, object: Object) -> Result<JsValue, JsValue> {
+        self.call(method, object).await.map_err(|error| {
+            js_util::coded_error(
+                "REMOTE_FAILURE",
+                format!("{method} failed: {}", js_util::error_message(&error)),
+            )
+        })
     }
 }
 
